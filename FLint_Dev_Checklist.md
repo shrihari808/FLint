@@ -59,42 +59,42 @@
 - [x] All output must be `console.log(JSON.stringify({...}))` — the plugin will parse stdout as JSON
 
 ### 1.2 — Init Command
-- [ ] Create `sidecar/feed.js`
-- [ ] In `feed.js`, write an async `initFeed(storageDir)` function that:
-  - [ ] Creates a `Corestore` at `storageDir`
-  - [ ] Creates a new `Hypercore` (writable) from that store
-  - [ ] Awaits `core.ready()`
-  - [ ] Returns the feed's `key` as a hex string: `core.key.toString('hex')`
-- [ ] Back in `index.js`, wire the `init` command to call `initFeed` and print:
+- [x] Create `sidecar/feed.js`
+- [x] In `feed.js`, write an async `initFeed(storageDir)` function that:
+  - [x] Creates a `Corestore` at `storageDir`
+  - [x] Creates a new `Hypercore` (writable) from that store
+  - [x] Awaits `core.ready()`
+  - [x] Returns the feed's `key` as a hex string: `core.key.toString('hex')`
+- [x] Back in `index.js`, wire the `init` command to call `initFeed` and print:
   ```json
   { "session_id": "<first 6 chars of key>", "feed_key": "<full hex key>" }
   ```
-- [ ] Test: `node index.js init` — should print a JSON object with no errors
+- [x] Test: `node index.js init` — should print a JSON object with no errors
 
 ### 1.3 — Push Command
-- [ ] Add `pushVersion(storageDir, filePath, note)` to `feed.js`
-- [ ] This function should:
-  - [ ] Open the existing Corestore + Hypercore (by loading from same `storageDir`)
-  - [ ] Read the zip file as a Buffer: `fs.readFileSync(filePath)`
-  - [ ] Append an entry to the feed: `core.append(Buffer.from(JSON.stringify({ note, file: fileBuffer.toString('base64') })))`
-  - [ ] Return `{ success: true, version: core.length }`
-- [ ] Wire the `push` command in `index.js`: accepts `--session`, `--file`, `--note` flags
-- [ ] Test: create a dummy `test.zip` (can be any file renamed), then:
+- [x] Add `pushVersion(storageDir, filePath, note)` to `feed.js`
+- [x] This function should:
+  - [x] Open the existing Corestore + Hypercore (by loading from same `storageDir`)
+  - [x] Read the zip file as a Buffer: `fs.readFileSync(filePath)`
+  - [x] Append an entry to the feed: `core.append(Buffer.from(JSON.stringify({ note, file: fileBuffer.toString('base64') })))`
+  - [x] Return `{ success: true, version: core.length }`
+- [x] Wire the `push` command in `index.js`: accepts `--session`, `--file`, `--note` flags
+- [x] Test: create a dummy `test.zip` (can be any file renamed), then:
   ```bash
   node index.js push --session abc123 --file ./test.zip --note "first push"
   ```
   Should print `{ "success": true, "version": 1 }`
 
 ### 1.4 — Pull Command
-- [ ] Add `pullLatest(storageDir, outDir)` to `feed.js`
-- [ ] This function should:
-  - [ ] Open the Hypercore from `storageDir`
-  - [ ] Get the last entry: `core.get(core.length - 1)`
-  - [ ] Parse the JSON, decode the base64 file buffer
-  - [ ] Write the buffer to `outDir/project.zip`
-  - [ ] Return `{ success: true, file: outDir + '/project.zip', note, version }`
-- [ ] Wire the `pull` command in `index.js`: accepts `--session`, `--out` flags
-- [ ] Test end-to-end locally:
+- [x] Add `pullLatest(storageDir, outDir)` to `feed.js`
+- [x] This function should:
+  - [x] Open the Hypercore from `storageDir`
+  - [x] Get the last entry: `core.get(core.length - 1)`
+  - [x] Parse the JSON, decode the base64 file buffer
+  - [x] Write the buffer to `outDir/project.zip`
+  - [x] Return `{ success: true, file: outDir + '/project.zip', note, version }`
+- [x] Wire the `pull` command in `index.js`: accepts `--session`, `--out` flags
+- [x] Test end-to-end locally:
   ```bash
   node index.js init
   node index.js push --session abc123 --file ./test.zip --note "test"
@@ -103,13 +103,13 @@
   The file should appear in `./incoming/project.zip`
 
 ### 1.5 — Log Command
-- [ ] Add `getLog(storageDir)` to `feed.js` — reads all entries and returns array of `{ version, timestamp, note }`
-- [ ] Wire the `log` command in `index.js`
-- [ ] Test: `node index.js log --session abc123` — should print a JSON array of versions
+- [x] Add `getLog(storageDir)` to `feed.js` — reads all entries and returns array of `{ version, timestamp, note }`
+- [x] Wire the `log` command in `index.js`
+- [x] Test: `node index.js log --session abc123` — should print a JSON array of versions
 
 ### 1.6 — Status Command (stub)
-- [ ] Add a `status` command stub that returns `{ peer_online: false, peer_version: 0, local_version: N }`
-- [ ] This will be fully implemented in Phase 2 once Hyperswarm is added
+- [x] Add a `status` command stub that returns `{ peer_online: false, peer_version: 0, local_version: N }`
+- [x] This will be fully implemented in Phase 2 once Hyperswarm is added
 
 ---
 

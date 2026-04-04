@@ -17,6 +17,10 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 
+# Hypercore
+sidecar/storage/
+sidecar/incoming/
+
 # ----------------------------------------------------------------------
 # Visual Studio / C++ (JUCE)
 # ----------------------------------------------------------------------
