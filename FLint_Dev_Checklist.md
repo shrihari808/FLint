@@ -52,11 +52,11 @@
 > Goal: `init`, `push`, and `pull` commands work between two folders on the same machine.
 
 ### 1.1 — Entry Point
-- [ ] Create `sidecar/index.js`
-- [ ] Use `minimist` to parse `process.argv.slice(2)` — store the result as `args`
-- [ ] Read `args._[0]` as the command name (e.g. `"init"`, `"push"`, `"pull"`)
-- [ ] Add a `switch` statement routing to stub functions for each command
-- [ ] All output must be `console.log(JSON.stringify({...}))` — the plugin will parse stdout as JSON
+- [x] Create `sidecar/index.js`
+- [x] Use `minimist` to parse `process.argv.slice(2)` — store the result as `args`
+- [x] Read `args._[0]` as the command name (e.g. `"init"`, `"push"`, `"pull"`)
+- [x] Add a `switch` statement routing to stub functions for each command
+- [x] All output must be `console.log(JSON.stringify({...}))` — the plugin will parse stdout as JSON
 
 ### 1.2 — Init Command
 - [ ] Create `sidecar/feed.js`
