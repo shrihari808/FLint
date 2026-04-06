@@ -1,6 +1,7 @@
 const Corestore = require('corestore');
 const fs = require('fs');
 const path = require('path');
+const { joinSwarm } = require('./swarm');
 
 async function initFeed(storageDir) {
     const store = new Corestore(storageDir);
@@ -15,6 +16,7 @@ async function pushVersion(storageDir, filePath, note) {
     await core.ready();
     const fileBuffer = fs.readFileSync(filePath);
     await core.append(Buffer.from(JSON.stringify({ note, timestamp: Date.now(), file: fileBuffer.toString('base64') })));
+    const swarm = await joinSwarm(core);
     return { success: true, version: core.length };
 }
 
@@ -22,6 +24,10 @@ async function pullLatest(storageDir, outDir) {
     const store = new Corestore(storageDir);
     const core = store.get({ name: 'flint-primary' });
     await core.ready();
+    
+    const swarm = await joinSwarm(core);
+    await new Promise(r => setTimeout(r, 3000));
+    
     if (core.length === 0) {
         throw new Error("Feed is empty");
     }

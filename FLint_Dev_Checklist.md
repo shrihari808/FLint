@@ -118,19 +118,19 @@
 > Goal: Two machines on different networks can sync feeds without a server.
 
 ### 2.1 — Understand Hyperswarm
-- [ ] Read the Hyperswarm README on GitHub before writing any code
-- [ ] Key concept: you join a swarm using a **topic** (a 32-byte Buffer). Both peers use the same topic to find each other via DHT
-- [ ] For FLint, the topic will be derived from the session's feed key
+- [x] Read the Hyperswarm README on GitHub before writing any code
+- [x] Key concept: you join a swarm using a **topic** (a 32-byte Buffer). Both peers use the same topic to find each other via DHT
+- [x] For FLint, the topic will be derived from the session's feed key
 
 ### 2.2 — Create swarm.js
-- [ ] Create `sidecar/swarm.js`
-- [ ] Write an async `joinSwarm(core)` function that:
-  - [ ] Creates a new `Hyperswarm` instance
-  - [ ] Calls `swarm.join(core.discoveryKey)` — Hypercore exposes `discoveryKey` as the swarm topic
-  - [ ] Listens for `swarm.on('connection', (conn) => { core.replicate(conn) })` — this wires replication automatically
-  - [ ] Returns the swarm instance (so the caller can destroy it later)
-- [ ] Import and call `joinSwarm` inside `pushVersion` after appending — the feed will replicate to connected peers
-- [ ] Import and call `joinSwarm` inside `pullLatest` before reading — wait briefly for peers to connect (use `setTimeout` + `Promise` for ~3 seconds)
+- [x] Create `sidecar/swarm.js`
+- [x] Write an async `joinSwarm(core)` function that:
+  - [x] Creates a new `Hyperswarm` instance
+  - [x] Calls `swarm.join(core.discoveryKey)` — Hypercore exposes `discoveryKey` as the swarm topic
+  - [x] Listens for `swarm.on('connection', (conn) => { core.replicate(conn) })` — this wires replication automatically
+  - [x] Returns the swarm instance (so the caller can destroy it later)
+- [x] Import and call `joinSwarm` inside `pushVersion` after appending — the feed will replicate to connected peers
+- [x] Import and call `joinSwarm` inside `pullLatest` before reading — wait briefly for peers to connect (use `setTimeout` + `Promise` for ~3 seconds)
 
 ### 2.3 — Test Over the Internet
 - [ ] Set up two machines (or two terminal sessions, one behind a VPN to simulate different networks)
