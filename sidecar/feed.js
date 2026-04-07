@@ -68,7 +68,15 @@ async function getStatus(storageDir) {
     const core = store.get({ name: 'flint-primary' });
     await core.ready();
     
-    return { peer_online: false, peer_version: 0, local_version: core.length };
+    const swarm = await joinSwarm(core);
+    await new Promise(r => setTimeout(r, 3000));
+    
+    const peerOnline = core.peers.length > 0;
+    const peerVersion = peerOnline ? Math.max(...core.peers.map(p => p.remoteLength || 0)) : 0;
+    
+    await swarm.destroy();
+    
+    return { peer_online: peerOnline, peer_version: peerVersion, local_version: core.length };
 }
 
 module.exports = {
