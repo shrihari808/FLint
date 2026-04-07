@@ -14,36 +14,36 @@
 ## Phase 0 — Environment Setup
 
 ### 0.1 — Node.js Sidecar Environment
-- [ ] Install Node.js 20+ from nodejs.org
-- [ ] Create the `flint/sidecar/` folder
-- [ ] Run `npm init -y` inside it to create `package.json`
-- [ ] Install dependencies:
+- [x] Install Node.js 20+ from nodejs.org
+- [x] Create the `flint/sidecar/` folder
+- [x] Run `npm init -y` inside it to create `package.json`
+- [x] Install dependencies:
   ```bash
   npm install hypercore hyperswarm corestore b4a minimist
   ```
-- [ ] Verify install: `node -e "require('hypercore'); console.log('ok')"` — should print `ok`
-- [ ] Create a scratch file `test.js` and confirm you can run `node test.js` without errors
+- [x] Verify install: `node -e "require('hypercore'); console.log('ok')"` — should print `ok`
+- [x] Create a scratch file `test.js` and confirm you can run `node test.js` without errors
 
 ### 0.2 — JUCE / C++ Plugin Environment
-- [ ] Download JUCE 7 from juce.com — extract to a stable location (e.g. `C:/JUCE`)
-- [ ] Download the VST3 SDK — place it somewhere accessible
-- [ ] Install CMake 3.22+ from cmake.org
-- [ ] Install Visual Studio 2022 (Community is fine) with the **Desktop development with C++** workload
-- [ ] Open the Projucer (ships with JUCE), create a new **Audio Plugin** project named `FLint`
-- [ ] In Projucer settings, set Plugin Formats to **VST3 only**
-- [ ] Set the plugin type to **Effect** (not Instrument) — FLint doesn't process audio
-- [ ] Export the Projucer project and confirm it builds with zero errors in Visual Studio
+- [x] Download JUCE 7 from juce.com — extract to a stable location (e.g. `C:/JUCE`)
+- [x] Download the VST3 SDK — place it somewhere accessible
+- [x] Install CMake 3.22+ from cmake.org
+- [x] Install Visual Studio 2022 (Community is fine) with the **Desktop development with C++** workload
+- [x] Open the Projucer (ships with JUCE), create a new **Audio Plugin** project named `FLint`
+- [x] In Projucer settings, set Plugin Formats to **VST3 only**
+- [x] Set the plugin type to **Effect** (not Instrument) — FLint doesn't process audio
+- [x] Export the Projucer project and confirm it builds with zero errors in Visual Studio
 
 ### 0.3 — Repo Structure
-- [ ] Create the top-level folder `flint/`
-- [ ] Inside it, create:
+- [x] Create the top-level folder `flint/`
+- [x] Inside it, create:
   ```
   flint/
   ├── plugin/       ← JUCE project goes here
   ├── sidecar/      ← Node.js CLI goes here
   └── README.md
   ```
-- [ ] Initialise a git repo: `git init` — commit this empty structure as your first commit
+- [x] Initialise a git repo: `git init` — commit this empty structure as your first commit
 
 ---
 
@@ -134,14 +134,14 @@
 
 ### 2.3 — Test Over the Internet
 - [ ] Set up two machines (or two terminal sessions, one behind a VPN to simulate different networks)
-- [ ] On Machine A: `node index.js init` — note the `feed_key`
-- [ ] On Machine B: hardcode the feed_key, open the same Corestore, replicate
-- [ ] On Machine A: push a version
-- [ ] On Machine B: pull — verify the zip arrives
+- [x] On Machine A: `node index.js init` — note the `feed_key`
+- [x] On Machine B: hardcode the feed_key, open the same Corestore, replicate
+- [x] On Machine A: push a version
+- [x] On Machine B: pull — verify the zip arrives
 
 ### 2.4 — Status Command (real implementation)
-- [ ] Update the `status` command to join the swarm, wait for connection events, and report `peer_online: true/false`
-- [ ] Report `peer_version` by reading the peer's replicated core length
+- [x] Update the `status` command to join the swarm, wait for connection events, and report `peer_online: true/false`
+- [x] Report `peer_version` by reading the peer's replicated core length
 - [ ] Test: run `status` on both machines simultaneously
 
 ---
