@@ -256,17 +256,12 @@ fn diff_patterns(old: &[PatternInfo], new: &[PatternInfo], diff: &mut MusicalDif
 }
 
 fn diff_samples(old: &[String], new: &[String], diff: &mut MusicalDiff) {
-    let old_set: BTreeSet<&str> = old.iter().map(String::as_str).collect();
-    let new_set: BTreeSet<&str> = new.iter().map(String::as_str).collect();
+    // Compare by normalized filename so Windows <-> macOS path prefixes never cause false diffs.
+    let old_set: BTreeSet<String> = old.iter().map(|p| short_filename(p)).collect();
+    let new_set: BTreeSet<String> = new.iter().map(|p| short_filename(p)).collect();
 
-    let added: Vec<String> = new_set
-        .difference(&old_set)
-        .map(|p| short_filename(p))
-        .collect();
-    let removed: Vec<String> = old_set
-        .difference(&new_set)
-        .map(|p| short_filename(p))
-        .collect();
+    let added: Vec<String> = new_set.difference(&old_set).cloned().collect();
+    let removed: Vec<String> = old_set.difference(&new_set).cloned().collect();
 
     if !added.is_empty() {
         diff.added_samples = added.clone();
@@ -385,5 +380,19 @@ mod tests {
             .summary_lines
             .iter()
             .any(|l| l.contains("Added samples: Vox.wav")));
+    }
+
+    #[test]
+    fn sample_diff_ignores_macos_vs_windows_path_prefixes() {
+        let mac = ProjectManifest {
+            samples: vec!["/var/folders/tmp/Image-Line/Kick.wav".into()],
+            ..Default::default()
+        };
+        let win = ProjectManifest {
+            samples: vec![r"C:\Users\kshri\Music\Project\Samples\Kick.wav".into()],
+            ..Default::default()
+        };
+        let diff = diff_manifests(&mac, &win);
+        assert!(diff.is_empty(), "expected no sample diff across OS paths: {diff:?}");
     }
 }

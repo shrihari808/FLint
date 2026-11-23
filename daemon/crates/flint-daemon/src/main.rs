@@ -127,7 +127,19 @@ fn cmd_inspect(path: PathBuf, json: bool) -> Result<()> {
 
     println!("\nActive Mixer Inserts ({}):", manifest.mixer_inserts.len());
     for ins in &manifest.mixer_inserts {
-        println!("  {} -> {}", ins.name, ins.fx_plugins.join(" -> "));
+        let fx = if ins.fx_plugins.is_empty() {
+            "(no FX)".to_string()
+        } else {
+            ins.fx_plugins.join(" -> ")
+        };
+        let label = if ins.index == 0 {
+            format!("Master ('{}')", ins.name)
+        } else if ins.name == format!("Insert {}", ins.index) {
+            ins.name.clone()
+        } else {
+            format!("Insert {} ('{}')", ins.index, ins.name)
+        };
+        println!("  {label} -> {fx}");
     }
 
     println!("\nPatterns ({}):", manifest.patterns.len());

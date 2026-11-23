@@ -46,7 +46,7 @@
 - [x] Extract **Mixer Inserts**: index, name, FX slot plugin names (handling Fruity Wrapper VST2/VST3 names)
 - [x] Extract **Patterns**: index, name, note count + deterministic content hash of pattern notes
 - [x] Support reading `.flp` directly *or* from inside a Zipped Loop `.zip` without manual extraction
-- [ ] Write unit tests against 3+ real `.flp` files exported from your local FL Studio installation *(verified on `first melodic techno.flp` + synthetic unit tests; test with a real 3rd-party VST project like Serum 2 next)*
+- [x] Write unit tests and verify against real `.flp` / `.zip` projects *(verified on `first melodic techno.flp` (FL 24.2.2) and `im on team cece.zip` (macOS FL 26.1.5 with Serum 2 + ShaperBox 3) + 6 automated unit tests)*
 
 ### 1.2 — Semantic Diff Engine (`flint-flp`)
 - [x] Implement `diff_manifests(old, new) -> MusicalDiff`
