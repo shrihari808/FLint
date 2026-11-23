@@ -4,11 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Normalized summary extracted from an FL Studio `.flp` project file.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProjectManifest {
     pub fl_version: String,
     pub title: String,
+    pub data_path: Option<String>,
     pub bpm: f64,
+    pub time_sig_num: u8,
+    pub time_sig_den: u8,
     pub ppq: u16,
     pub channels: Vec<ChannelInfo>,
     pub mixer_inserts: Vec<MixerInsertInfo>,
@@ -16,12 +19,43 @@ pub struct ProjectManifest {
     pub samples: Vec<String>,
 }
 
+impl Default for ProjectManifest {
+    fn default() -> Self {
+        Self {
+            fl_version: String::new(),
+            title: String::new(),
+            data_path: None,
+            bpm: 130.0,
+            time_sig_num: 4,
+            time_sig_den: 4,
+            ppq: 96,
+            channels: Vec::new(),
+            mixer_inserts: Vec::new(),
+            patterns: Vec::new(),
+            samples: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelInfo {
     pub index: u16,
     pub name: String,
+    /// Native plugin or "Fruity Wrapper" (if hosting a third-party VST).
     pub plugin_name: Option<String>,
+    /// Resolved third-party VST2/VST3 name when hosted inside Fruity Wrapper.
+    pub wrapped_plugin_name: Option<String>,
     pub sample_path: Option<String>,
+}
+
+impl ChannelInfo {
+    /// Returns the effective plugin name (preferring the unwrapped VST name when present).
+    pub fn effective_plugin_name(&self) -> Option<&str> {
+        self.wrapped_plugin_name
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .or_else(|| self.plugin_name.as_deref().filter(|s| !s.is_empty()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,12 +78,23 @@ pub struct PatternInfo {
 pub struct MusicalDiff {
     pub summary_lines: Vec<String>,
     pub bpm_changed: Option<(f64, f64)>,
+    pub time_sig_changed: Option<((u8, u8), (u8, u8))>,
     pub fl_version_changed: Option<(String, String)>,
+    pub added_channels: Vec<String>,
+    pub removed_channels: Vec<String>,
     pub added_plugins: Vec<String>,
     pub removed_plugins: Vec<String>,
+    pub added_patterns: Vec<String>,
+    pub removed_patterns: Vec<String>,
     pub modified_patterns: Vec<String>,
     pub added_samples: Vec<String>,
     pub removed_samples: Vec<String>,
+}
+
+impl MusicalDiff {
+    pub fn is_empty(&self) -> bool {
+        self.summary_lines.is_empty()
+    }
 }
 
 /// Environment advertised by each collaborator in the P2P session.
@@ -68,6 +113,12 @@ pub struct CompatibilityReport {
     pub peer_display_name: String,
     pub missing_plugins: Vec<MissingPluginWarning>,
     pub fl_version_mismatch: Option<String>,
+}
+
+impl CompatibilityReport {
+    pub fn is_compatible(&self) -> bool {
+        self.missing_plugins.is_empty() && self.fl_version_mismatch.is_none()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

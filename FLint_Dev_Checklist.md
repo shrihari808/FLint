@@ -39,29 +39,29 @@
 > **Goal:** Run a CLI command against two real `.flp` files and get an accurate musical diff + missing-plugin report. *(Proves the killer differentiator immediately.)*
 
 ### 1.1 — `.flp` Binary Parser (`flint-flp`)
-- [ ] Parse `FLhd` header (`format`, `num_channels`, `ppq`) and validate magic bytes
-- [ ] Parse `FLdt` chunk and implement the 4-band TLV event reader (`0..=63` byte, `64..=127` word, `128..=191` dword, `192..=255` varint length-prefixed data)
-- [ ] Extract core project metadata: FL Studio version string, BPM (including fine tempo), time signature, title
-- [ ] Extract **Channels**: index, name, generator/plugin name, sample file path (resolving `%FLStudioUserData%` / relative paths where applicable)
-- [ ] Extract **Mixer Inserts**: index, name, FX slot plugin names (handling Fruity Wrapper VST2/VST3 names)
-- [ ] Extract **Patterns**: index, name, note count + deterministic content hash of pattern notes
-- [ ] Support reading `.flp` directly *or* from inside a Zipped Loop `.zip` without manual extraction
-- [ ] Write unit tests against 3+ real `.flp` files exported from your local FL Studio installation
+- [x] Parse `FLhd` header (`format`, `num_channels`, `ppq`) and validate magic bytes
+- [x] Parse `FLdt` chunk and implement the 4-band TLV event reader (`0..=63` byte, `64..=127` word, `128..=191` dword, `192..=255` varint length-prefixed data)
+- [x] Extract core project metadata: FL Studio version string, BPM (including fine tempo), time signature, title
+- [x] Extract **Channels**: index, name, generator/plugin name, sample file path (resolving `%FLStudioUserData%` / relative paths where applicable)
+- [x] Extract **Mixer Inserts**: index, name, FX slot plugin names (handling Fruity Wrapper VST2/VST3 names)
+- [x] Extract **Patterns**: index, name, note count + deterministic content hash of pattern notes
+- [x] Support reading `.flp` directly *or* from inside a Zipped Loop `.zip` without manual extraction
+- [ ] Write unit tests against 3+ real `.flp` files exported from your local FL Studio installation *(verified on `first melodic techno.flp` + synthetic unit tests; test with a real 3rd-party VST project like Serum 2 next)*
 
 ### 1.2 — Semantic Diff Engine (`flint-flp`)
-- [ ] Implement `diff_manifests(old, new) -> MusicalDiff`
-- [ ] Detect and format human-readable summaries for:
+- [x] Implement `diff_manifests(old, new) -> MusicalDiff`
+- [x] Detect and format human-readable summaries for:
   - Tempo / FL version changes
   - Added / removed / renamed channels and plugins
   - Added / removed / reordered FX on mixer inserts
   - Added / removed / modified patterns (including note count deltas)
   - Added / removed audio sample files
-- [ ] CLI smoke test: `flint-daemon inspect project_v1.flp` and `flint-daemon diff project_v1.flp project_v2.flp`
+- [x] CLI smoke test: `flint-daemon inspect project_v1.flp` and `flint-daemon diff project_v1.flp project_v2.flp`
 
 ### 1.3 — Installed Plugin Scanner (`flint-vst-scan`)
-- [ ] Scan Windows VST3 (`C:\Program Files\Common Files\VST3`), common VST2 paths, and configurable custom folders
-- [ ] Normalize plugin names (strip `.vst3`/`.dll`, handle architecture suffixes like `(x64)`) + maintain FL Studio stock plugin allowlist so native FL plugins never trigger false-positive warnings
-- [ ] Implement `check_compatibility(manifest, peer_env) -> CompatibilityReport` listing missing VSTs with their exact Channel / Mixer Insert location and FL version mismatch warnings
+- [x] Scan Windows VST3 (`C:\Program Files\Common Files\VST3`), common VST2 paths, and configurable custom folders
+- [x] Normalize plugin names (strip `.vst3`/`.dll`, handle architecture suffixes like `(x64)`) + maintain FL Studio stock plugin allowlist so native FL plugins never trigger false-positive warnings
+- [x] Implement `check_compatibility(manifest, peer_env) -> CompatibilityReport` listing missing VSTs with their exact Channel / Mixer Insert location and FL version mismatch warnings
 
 ---
 

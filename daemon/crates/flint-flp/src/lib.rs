@@ -1,26 +1,27 @@
 //! FL Studio `.flp` binary parser and semantic musical diff engine.
 
-use flint_core::{MusicalDiff, ProjectManifest};
+mod diff;
+mod parser;
+
+pub use diff::diff_manifests;
+pub use parser::{parse_flp_bytes, parse_flp_path};
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum FlpError {
     #[error("invalid FLP header magic (expected 'FLhd')")]
     InvalidHeader,
-    #[error("unexpected end of FLP data")]
-    UnexpectedEof,
+    #[error("invalid FLP data chunk magic (expected 'FLdt')")]
+    InvalidDataChunk,
+    #[error("unexpected end of FLP data at byte offset {0}")]
+    UnexpectedEof(usize),
+    #[error("malformed varint length at byte offset {0}")]
+    InvalidVarint(usize),
+    #[error("no .flp file found inside zip archive")]
+    NoFlpInZip,
+    #[error("zip archive error: {0}")]
+    Zip(#[from] zip::result::ZipError),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("parser not yet implemented (scheduled for Phase 1)")]
-    NotImplemented,
-}
-
-/// Parse an `.flp` binary buffer into a normalized `ProjectManifest`.
-pub fn parse_flp_bytes(_bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
-    Err(FlpError::NotImplemented)
-}
-
-/// Compute a semantic musical diff between two `ProjectManifest` versions.
-pub fn diff_manifests(_old: &ProjectManifest, _new: &ProjectManifest) -> MusicalDiff {
-    MusicalDiff::default()
 }

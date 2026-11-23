@@ -6,7 +6,9 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+clap.workspace = true
 flint-core.workspace = true
 flint-flp.workspace = true
 flint-vst-scan.workspace = true
 flint-sync.workspace = true
+serde_json.workspace = true
