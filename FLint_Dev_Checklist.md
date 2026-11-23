@@ -70,23 +70,23 @@
 > **Goal:** Two machines on different networks exchange deduplicated `.flp` snapshots, samples, comments, and crate items via pure P2P — with multi-writer support and an optional always-on seeder.
 
 ### 2.1 — Iroh Core + Blobs (`iroh` + `iroh-blobs`)
-- [ ] Set up persistent `iroh::Endpoint` with stored Ed25519 secret key in `%LOCALAPPDATA%\FLint\`
-- [ ] Initialize persistent `iroh-blobs` store (BLAKE3 content-addressed storage)
-- [ ] Implement `ingest_project_assets(project_dir, manifest)` — hashes `.flp` and each referenced sample individually into `iroh-blobs` (zero zipping, automatic deduplication)
-- [ ] Implement `materialize_snapshot(snapshot, target_dir)` — fetches only missing blobs from peers and writes files cleanly without clobbering active unsaved files
+- [x] Set up persistent `iroh::Endpoint` with stored Ed25519 secret key in `%LOCALAPPDATA%\FLint\`
+- [x] Initialize persistent `iroh-blobs` store (BLAKE3 content-addressed storage)
+- [x] Implement `ingest_project_assets(project_dir, manifest)` — hashes `.flp` and each referenced sample individually into `iroh-blobs` (zero zipping, automatic deduplication)
+- [x] Implement `materialize_snapshot(snapshot, target_dir)` — fetches only missing blobs from peers and writes files cleanly without clobbering active unsaved files
 
 ### 2.2 — Multi-Writer Session Sync (`iroh-docs` + `iroh-gossip`)
-- [ ] Implement `create_session()` → creates an `iroh-docs` namespace and returns a shareable invite ticket
-- [ ] Implement `join_session(ticket)` → joins namespace, subscribes to document sync and `iroh-gossip` presence topic
-- [ ] Publish local environment (`peers/<node_id>/env`) on join and startup
-- [ ] Implement multi-writer `push_snapshot()` writing `snapshots/<ulid>_<author>` with `parent_ids`, `manifest`, `diff_summary`, `flp_blob`, `assets`, and optional `preview_audio_blob`
-- [ ] Implement `add_comment()` (`comments/<snapshot_id>/<ulid>`) and `add_crate_item()` (`crate/<ulid>`)
-- [ ] Implement live peer presence tracking via `iroh-gossip` (online / offline / syncing)
+- [x] Implement `create_session()` → creates an `iroh-docs` namespace and returns a shareable invite ticket
+- [x] Implement `join_session(ticket)` → joins namespace, subscribes to document sync and `iroh-gossip` presence topic
+- [x] Publish local environment (`peers/<node_id>/env`) on join and startup
+- [x] Implement multi-writer `push_snapshot()` writing `snapshots/<ulid>_<author>` with `parent_ids`, `manifest`, `diff_summary`, `flp_blob`, `assets`, and optional `preview_audio_blob`
+- [x] Implement `add_comment()` (`comments/<snapshot_id>/<ulid>`) and `add_crate_item()` (`crate/<ulid>`)
+- [x] Implement live peer presence tracking via `iroh-gossip` (`LiveEvent::NeighborUp` / `NeighborDown`)
 
 ### 2.3 — Optional Always-On Seeder Mode
-- [ ] Add `flint-daemon --seeder --data-dir <path>` headless mode
-- [ ] Add `flint-daemon seed add <ticket>` to pin a session on a VPS / Raspberry Pi / home PC for 24/7 offline async replication
-- [ ] **Two-Machine Internet Test:** Push a real FL Studio project with samples from Machine A → verify only changed files transfer on push #2 → verify concurrent pushes from A and B both appear cleanly without clobbering
+- [x] Add `flint-daemon seeder --data-dir <path>` headless mode
+- [x] Add `flint-daemon seeder --add <ticket>` to pin a session on a VPS / Raspberry Pi / home PC for 24/7 offline async replication
+- [ ] **Two-Machine Internet Test:** Push a real FL Studio project with samples from Machine A → verify only changed files transfer on push #2 → verify concurrent pushes from A and B both appear cleanly without clobbering *(automated 2-peer Iroh QUIC integration test in `p2p_sync.rs` passing; ready for physical 2-machine test across networks)*
 
 ---
 
