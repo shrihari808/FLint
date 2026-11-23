@@ -1,0 +1,12 @@
+[package]
+name = "flint-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+flint-core.workspace = true
+flint-flp.workspace = true
+flint-vst-scan.workspace = true
+flint-sync.workspace = true

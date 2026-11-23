@@ -22,8 +22,19 @@ sidecar/storage/
 sidecar/incoming/
 
 # ----------------------------------------------------------------------
-# Visual Studio / C++ (JUCE)
+# Rust (daemon/)
 # ----------------------------------------------------------------------
+daemon/target/
+**/*.rs.bk
+
+# ----------------------------------------------------------------------
+# CMake / Visual Studio / C++ (JUCE)
+# ----------------------------------------------------------------------
+build/
+plugin/build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
 # User-specific files
 *.rsuser
 *.suo
