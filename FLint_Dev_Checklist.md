@@ -73,7 +73,10 @@
 - [x] Set up persistent `iroh::Endpoint` with stored Ed25519 secret key in `%LOCALAPPDATA%\FLint\`
 - [x] Initialize persistent `iroh-blobs` store (BLAKE3 content-addressed storage)
 - [x] Implement `ingest_project_assets(project_dir, manifest)` — hashes `.flp` and each referenced sample individually into `iroh-blobs` (zero zipping, automatic deduplication)
-- [x] Implement `materialize_snapshot(snapshot, target_dir)` — fetches only missing blobs from peers and writes files cleanly without clobbering active unsaved files
+- [x] Implement `materialize_snapshot(snapshot, target_dir)` — fetches only missing blobs from peers and writes files cleanly without clobbering active unsaved files *(v0.2.1: files now download on demand via the iroh-blobs downloader with retry; pulls always go to a new folder and rewrite sample paths in the `.flp`)*
+- [x] Track each working folder's base snapshot in `.flint/<session_id>.json` so pushes record the right parent (v0.2.1)
+- [x] Report samples missing on the pusher's disk instead of silently skipping them (v0.2.1)
+- [x] `session prune` + blob garbage collection so disk use doesn't grow forever (v0.2.1)
 
 ### 2.2 — Multi-Writer Session Sync (`iroh-docs` + `iroh-gossip`)
 - [x] Implement `create_session()` → creates an `iroh-docs` namespace and returns a shareable invite ticket
@@ -85,7 +88,9 @@
 
 ### 2.3 — Optional Always-On Seeder Mode
 - [x] Add `flint-daemon seeder --data-dir <path>` headless mode
-- [x] Add `flint-daemon seeder --add <ticket>` to pin a session on a VPS / Raspberry Pi / home PC for 24/7 offline async replication
+- [x] Add `flint-daemon seeder --add <ticket>` to pin a session on a VPS / Raspberry Pi / home PC for 24/7 offline async replication *(v0.2.1: tickets are downgraded to read-only unless `--allow-write`; the seeder prefetches every snapshot's files on a loop)*
+- [x] `session share --read-only` / `--hide-ip` and `session rotate` to remove a collaborator (v0.2.1)
+- [ ] Client-side encryption so a seeder can store files without being able to read them (not started)
 - [ ] **Two-Machine Internet Test:** Push a real FL Studio project with samples from Machine A → verify only changed files transfer on push #2 → verify concurrent pushes from A and B both appear cleanly without clobbering *(automated 2-peer Iroh QUIC integration test in `p2p_sync.rs` passing; ready for physical 2-machine test across networks)*
 
 ---

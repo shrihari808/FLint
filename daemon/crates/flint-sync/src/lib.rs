@@ -3,8 +3,12 @@
 mod node;
 mod session;
 
-pub use node::SyncNode;
-pub use session::{PullResult, PushResult, SessionCreated, SessionMeta};
+pub use node::{NetworkMode, NodeOptions, SyncNode};
+pub use session::{
+    read_workspace_record, ParentSource, PrefetchReport, PrefetchScope, PruneReport,
+    PullOptions, PullResult, PushOptions, PushResult, RotateResult, SessionCreated, SessionMeta,
+    ShareOptions, WorkspaceRecord, WORKSPACE_DIR,
+};
 
 use thiserror::Error;
 
@@ -22,6 +26,13 @@ pub enum SyncError {
     InvalidHash(String, String),
     #[error("blob {0} is not yet available locally or from connected peers")]
     BlobUnavailable(String),
+    #[error(
+        "{} file(s) could not be downloaded: no online collaborator or seeder has them. \
+         Ask the author to open FLint (or run a seeder), then try again. Missing: {}",
+        .0.len(),
+        .0.join(", ")
+    )]
+    BlobsUnavailable(Vec<String>),
     #[error("FLP parse error: {0}")]
     Flp(#[from] flint_flp::FlpError),
     #[error("I/O error: {0}")]

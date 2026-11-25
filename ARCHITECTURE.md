@@ -35,7 +35,7 @@ Instead, FLint v2 uses **[Iroh](https://iroh.computer/) (v1.x)** — a modern, p
 | **Multi-writer history** | Broken (Hypercore is single-writer; required Autobase) | `iroh-docs` (multi-writer eventually-consistent document store out of the box) |
 | **Deduplicated audio/project sync** | Broken (base64 full `.zip` in JSON) | `iroh-blobs` (BLAKE3 content-addressed verified streaming; only new/changed files transfer) |
 | **Live peer presence & signals** | Polling CLI every 10s (froze UI) | `iroh-gossip` (lightweight P2P pub-sub for live online/offline status & live notifications) |
-| **True offline async P2P** | Impossible when peers aren't online together | Optional **`flint-daemon --seeder`** mode — any self-hosted VPS, Raspberry Pi, or always-on home PC can join a session ticket as an encrypted/blind always-on peer |
+| **True offline async P2P** | Impossible when peers aren't online together | Optional **`flint-daemon --seeder`** mode — any self-hosted VPS, Raspberry Pi, or always-on home PC can join a session with a **read-only** ticket as an always-on peer. It is *not* blind: it stores and can read everything (see §6) |
 
 ---
 
@@ -230,9 +230,26 @@ Pushes real-time events to the VST3 UI with zero polling:
 ## 6. Always-On Seeder Mode (Optional Self-Hosted Async)
 
 To keep FLint 100% pure P2P while still supporting true offline async collaboration (Producer A pushes at 2 AM, shuts down laptop, Producer B wakes up at 9 AM and pulls):
-- `flint-daemon` ships with a headless `--seeder` flag:
+- `flint-daemon` ships with a headless `seeder` command:
   ```bash
-  flint-daemon --seeder --data-dir /var/lib/flint-seeder
+  flint-daemon session share <session_id> --read-only      # on your machine
+  flint-daemon --data-dir /var/lib/flint-seeder seeder --add <read-only ticket>
   ```
-- You (or a team/studio) can run this single Rust binary on a \$4/mo VPS, Raspberry Pi, or home NAS and pass it any session invite ticket.
-- It automatically joins the session's `iroh-docs` + `iroh-blobs` swarm, pins all blobs, and serves them over QUIC whenever any collaborator comes online — no custom cloud backend or SaaS lock-in required.
+- You (or a team/studio) can run this single Rust binary on a \$4/mo VPS, Raspberry Pi, or home NAS.
+- It joins the session's `iroh-docs` namespace, downloads every snapshot's files on a loop (`--prefetch-interval-secs`, default 60), and serves them over QUIC whenever any collaborator comes online — no custom cloud backend or SaaS lock-in required.
+- Write tickets are downgraded to read-only before being used or saved unless `--allow-write` is passed, so a compromised seeder cannot rewrite session history.
+
+## 7. Security Model (what FLint does and does not protect)
+
+- **Invite tickets.** A write ticket lets the holder add snapshots, comments, and crate items forever. A read-only ticket (`session share --read-only`) lets them sync and download only. Tickets also contain your IP addresses unless you use `--hide-ip`.
+- **The session ID is a read key.** In iroh-docs the namespace ID is the read capability: anyone who has it and can reach a peer can sync the session. Treat it like a ticket. This matters for Phase 4, which plans to save the session ID inside the `.flp` — sharing that `.flp` outside the group would share read access.
+- **No revocation.** iroh-docs cannot revoke a ticket. `session rotate` copies the history into a new namespace and stops syncing the old one; send the new ticket only to the people who should keep access. Removed people keep everything they had before the rotation.
+- **Seeders are not blind.** Files and metadata are stored unencrypted, so whoever runs a seeder can read the project. Making seeders blind needs client-side encryption with a session key that is never given to the seeder (not implemented).
+- **Blob serving.** `iroh-blobs` serves any stored file to any peer that asks for its BLAKE3 hash. Hashes are only learned by reading the session, so this is fine for trusted groups, but it is another reason to keep session IDs private.
+- **Transport.** All traffic is QUIC with TLS keyed by each node's Ed25519 identity. n0's public relays forward encrypted packets when direct hole-punching fails; they cannot read them.
+
+## 8. Disk Usage
+
+Files are kept by FLint *tags* (`flint/s/<session_id>/<hash>`) and blob garbage collection runs every 10 minutes in the daemon. A file is deleted only when no FLint tag and no iroh-docs entry references it. `session prune --keep N` releases the tags of files that only snapshots older than the newest N need; history records are never deleted and other collaborators are unaffected. Pulling an old snapshot later re-downloads its files from any peer that still has them.
+
+Sessions created before v0.2.1 registered every file under a `blobs/<hash>` doc entry; those files stay pinned by the doc and cannot be pruned. `session rotate` starts a clean session without that registry.

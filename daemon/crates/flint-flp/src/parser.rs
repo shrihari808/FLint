@@ -1,5 +1,5 @@
 use crate::FlpError;
-use flint_core::{ChannelInfo, MixerInsertInfo, PatternInfo, ProjectManifest};
+use flint_core::{ArrangementInfo, ChannelInfo, MixerInsertInfo, PatternInfo, ProjectManifest};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -13,6 +13,8 @@ const WORD_NEW_CHAN: u8 = 64;
 const WORD_NEW_PAT: u8 = 65;
 const WORD_COARSE_TEMPO: u8 = 66;
 const WORD_SLOT_INDEX: u8 = 98;
+/// `ArrangementID.New` (WORD + 35) in PyFLP — starts a new playlist arrangement (FL 12.9+).
+const WORD_NEW_ARRANGEMENT: u8 = 99;
 
 const DWORD_FINE_TEMPO: u8 = 156;
 
@@ -27,7 +29,16 @@ const TEXT_INSERT_NAME: u8 = 204;
 
 const DATA_PLUGIN_STATE: u8 = 213;
 const DATA_PATTERN_NOTES: u8 = 224;
+/// `ArrangementID.Playlist` (DATA + 25) in PyFLP — packed playlist clip records.
+const DATA_PLAYLIST_ITEMS: u8 = 233;
 const DATA_INSERT_PARAMS: u8 = 236;
+/// `ArrangementID.Name` (TEXT + 49) in PyFLP.
+const TEXT_ARRANGEMENT_NAME: u8 = 241;
+
+/// Audio file extensions we look for when scanning native plugin state for embedded sample paths.
+const AUDIO_EXTENSIONS: &[&str] = &[
+    ".wav", ".mp3", ".flac", ".ogg", ".aif", ".aiff", ".wv", ".rex", ".rx2", ".sf2",
+];
 
 /// Size of a single note record in `DATA_PATTERN_NOTES` (FL Studio 20+).
 const NOTE_RECORD_BYTES: usize = 24;
@@ -46,6 +57,15 @@ struct ChannelBuilder {
     plugin_name: Option<String>,
     wrapped_plugin_name: Option<String>,
     sample_path: Option<String>,
+    plugin_state_hash: Option<String>,
+}
+
+#[derive(Debug, Default)]
+struct ArrangementBuilder {
+    index: u16,
+    name: String,
+    playlist_bytes: usize,
+    playlist_hash: String,
 }
 
 #[derive(Debug, Default)]
@@ -61,6 +81,7 @@ struct MixerInsertBuilder {
     index: u16,
     name: String,
     fx_plugins: Vec<String>,
+    fx_state_hashes: Vec<String>,
 }
 
 #[derive(Debug, Default)]
@@ -68,6 +89,7 @@ struct PendingSlot {
     plugin_name: Option<String>,
     display_name: Option<String>,
     wrapped_plugin_name: Option<String>,
+    state_hash: Option<String>,
 }
 
 impl PendingSlot {
@@ -172,6 +194,9 @@ pub fn parse_flp_bytes(bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
     let mut mixer_inserts: BTreeMap<u16, MixerInsertBuilder> = BTreeMap::new();
     let mut sample_set: BTreeSet<String> = BTreeSet::new();
     let mut pending_slot = PendingSlot::default();
+    let mut arrangements: BTreeMap<u16, ArrangementBuilder> = BTreeMap::new();
+    // Projects older than FL 12.9 have a single implicit arrangement with no "new arrangement" event.
+    let mut current_arrangement: u16 = 0;
 
     while pos < end {
         let id = bytes[pos];
@@ -218,18 +243,27 @@ pub fn parse_flp_bytes(bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
                         if let ParseContext::MixerInsert(ins_idx) = ctx {
                             if pending_slot.is_present() {
                                 if let Some(name) = pending_slot.resolved_name() {
-                                    mixer_inserts
+                                    let insert = mixer_inserts
                                         .entry(ins_idx)
                                         .or_insert_with(|| MixerInsertBuilder {
                                             index: ins_idx,
                                             ..Default::default()
-                                        })
-                                        .fx_plugins
-                                        .push(name);
+                                        });
+                                    insert.fx_plugins.push(name);
+                                    insert
+                                        .fx_state_hashes
+                                        .push(pending_slot.state_hash.take().unwrap_or_default());
                                 }
                             }
                             pending_slot = PendingSlot::default();
                         }
+                    }
+                    WORD_NEW_ARRANGEMENT => {
+                        current_arrangement = val;
+                        arrangements.entry(val).or_insert_with(|| ArrangementBuilder {
+                            index: val,
+                            ..Default::default()
+                        });
                     }
                     _ => {}
                 }
@@ -341,6 +375,7 @@ pub fn parse_flp_bytes(bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
                     DATA_PLUGIN_STATE => match ctx {
                         ParseContext::Channel(ch_idx) => {
                             if let Some(ch) = channels.get_mut(&ch_idx) {
+                                ch.plugin_state_hash = Some(short_hash(payload));
                                 let is_wrapper = ch
                                     .plugin_name
                                     .as_deref()
@@ -349,10 +384,19 @@ pub fn parse_flp_bytes(bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
                                     if let Some(vst_name) = parse_fruity_wrapper_name(payload) {
                                         ch.wrapped_plugin_name = Some(vst_name);
                                     }
+                                } else {
+                                    // Native sample-based plugins (Slicex, DirectWave, FPC, ...) keep
+                                    // their sample paths inside the plugin state, not in event 196.
+                                    // Third-party VSTs are skipped on purpose: their state can reference
+                                    // huge sample libraries (Kontakt, etc.) that we must not sync.
+                                    for path in extract_embedded_audio_paths(payload) {
+                                        sample_set.insert(path);
+                                    }
                                 }
                             }
                         }
                         ParseContext::MixerInsert(_) => {
+                            pending_slot.state_hash = Some(short_hash(payload));
                             let is_wrapper = pending_slot
                                 .plugin_name
                                 .as_deref()
@@ -365,6 +409,32 @@ pub fn parse_flp_bytes(bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
                         }
                         ParseContext::Project => {}
                     },
+                    DATA_PLAYLIST_ITEMS => {
+                        let arr = arrangements.entry(current_arrangement).or_insert_with(|| {
+                            ArrangementBuilder {
+                                index: current_arrangement,
+                                ..Default::default()
+                            }
+                        });
+                        arr.playlist_bytes = payload.len();
+                        arr.playlist_hash = if payload.is_empty() {
+                            String::new()
+                        } else {
+                            short_hash(payload)
+                        };
+                    }
+                    TEXT_ARRANGEMENT_NAME => {
+                        let s = decode_flp_string(payload, is_unicode);
+                        if !s.is_empty() {
+                            arrangements
+                                .entry(current_arrangement)
+                                .or_insert_with(|| ArrangementBuilder {
+                                    index: current_arrangement,
+                                    ..Default::default()
+                                })
+                                .name = s;
+                        }
+                    }
                     DATA_INSERT_PARAMS => {
                         let ins_idx = next_mixer_insert;
                         next_mixer_insert = next_mixer_insert.saturating_add(1);
@@ -422,7 +492,22 @@ pub fn parse_flp_bytes(bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
                 plugin_name: c.plugin_name,
                 wrapped_plugin_name: c.wrapped_plugin_name,
                 sample_path: c.sample_path,
+                plugin_state_hash: c.plugin_state_hash,
             }
+        })
+        .collect();
+
+    manifest.arrangements = arrangements
+        .into_values()
+        .map(|a| ArrangementInfo {
+            index: a.index,
+            name: if a.name.is_empty() {
+                format!("Arrangement {}", a.index + 1)
+            } else {
+                a.name
+            },
+            playlist_bytes: a.playlist_bytes,
+            playlist_hash: a.playlist_hash,
         })
         .collect();
 
@@ -443,6 +528,7 @@ pub fn parse_flp_bytes(bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
                 index: m.index,
                 name,
                 fx_plugins: m.fx_plugins,
+                fx_state_hashes: m.fx_state_hashes,
             }
         })
         .collect();
@@ -464,6 +550,198 @@ pub fn parse_flp_bytes(bytes: &[u8]) -> Result<ProjectManifest, FlpError> {
     manifest.samples = sample_set.into_iter().collect();
 
     Ok(manifest)
+}
+
+/// Rewrite every channel sample path (event 196) in an `.flp` buffer.
+///
+/// `map` receives the path exactly as stored in the project and returns `Some(new_path)` to
+/// replace it or `None` to keep it. Returns the new buffer and how many paths were rewritten.
+/// Everything else in the file is copied byte-for-byte; only the rewritten events and the
+/// `FLdt` chunk length change.
+///
+/// Sample paths stored *inside* plugin state (Slicex, DirectWave, ...) are not rewritten.
+pub fn rewrite_sample_paths(
+    bytes: &[u8],
+    mut map: impl FnMut(&str) -> Option<String>,
+) -> Result<(Vec<u8>, usize), FlpError> {
+    if bytes.len() < 22 {
+        return Err(FlpError::UnexpectedEof(bytes.len()));
+    }
+    if &bytes[0..4] != b"FLhd" {
+        return Err(FlpError::InvalidHeader);
+    }
+    let header_len = u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize;
+    let data_chunk_offset = 8 + header_len;
+    if bytes.len() < data_chunk_offset + 8 {
+        return Err(FlpError::UnexpectedEof(bytes.len()));
+    }
+    if &bytes[data_chunk_offset..data_chunk_offset + 4] != b"FLdt" {
+        return Err(FlpError::InvalidDataChunk);
+    }
+    let data_len = u32::from_le_bytes(
+        bytes[data_chunk_offset + 4..data_chunk_offset + 8]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+    let start = data_chunk_offset + 8;
+    let end = (start + data_len).min(bytes.len());
+
+    let mut out_events: Vec<u8> = Vec::with_capacity(data_len + 256);
+    let mut is_unicode = true;
+    let mut rewritten = 0usize;
+    let mut pos = start;
+
+    while pos < end {
+        let event_start = pos;
+        let id = bytes[pos];
+        pos += 1;
+        match id {
+            0..=63 => pos += 1,
+            64..=127 => pos += 2,
+            128..=191 => pos += 4,
+            192..=255 => {
+                let len = read_varint(bytes, &mut pos, end)?;
+                if pos + len > end {
+                    return Err(FlpError::UnexpectedEof(pos));
+                }
+                let payload = &bytes[pos..pos + len];
+                pos += len;
+                if id == TEXT_VERSION {
+                    is_unicode = fl_version_uses_utf16(&decode_ascii(payload));
+                } else if id == TEXT_SAMPLE_PATH {
+                    let old = decode_flp_string(payload, is_unicode);
+                    if let Some(new_path) = map(&old).filter(|p| *p != old) {
+                        let encoded = encode_flp_string(&new_path, is_unicode);
+                        out_events.push(id);
+                        write_varint(&mut out_events, encoded.len());
+                        out_events.extend_from_slice(&encoded);
+                        rewritten += 1;
+                        continue;
+                    }
+                }
+            }
+        }
+        if pos > end {
+            return Err(FlpError::UnexpectedEof(pos));
+        }
+        out_events.extend_from_slice(&bytes[event_start..pos]);
+    }
+
+    let mut out = Vec::with_capacity(bytes.len() + 256);
+    out.extend_from_slice(&bytes[..data_chunk_offset + 4]);
+    out.extend_from_slice(&(out_events.len() as u32).to_le_bytes());
+    out.extend_from_slice(&out_events);
+    // Preserve anything FL Studio may have written after the data chunk.
+    out.extend_from_slice(&bytes[end..]);
+    Ok((out, rewritten))
+}
+
+/// First 16 hex chars of the BLAKE3 hash — enough to detect changes, short enough to store.
+fn short_hash(bytes: &[u8]) -> String {
+    blake3::hash(bytes).to_hex()[..16].to_string()
+}
+
+fn write_varint(out: &mut Vec<u8>, mut len: usize) {
+    loop {
+        let mut b = (len & 0x7F) as u8;
+        len >>= 7;
+        if len > 0 {
+            b |= 0x80;
+        }
+        out.push(b);
+        if len == 0 {
+            break;
+        }
+    }
+}
+
+fn encode_flp_string(s: &str, is_unicode: bool) -> Vec<u8> {
+    let mut raw = Vec::new();
+    if is_unicode {
+        for u in s.encode_utf16() {
+            raw.extend_from_slice(&u.to_le_bytes());
+        }
+        raw.extend_from_slice(&0u16.to_le_bytes());
+    } else {
+        raw.extend_from_slice(s.as_bytes());
+        raw.push(0);
+    }
+    raw
+}
+
+/// Best-effort scan of a native plugin's state chunk for embedded audio file paths
+/// (ASCII or UTF-16LE). Only strings that look like a path (contain a separator) and end in a
+/// known audio extension are returned.
+fn extract_embedded_audio_paths(data: &[u8]) -> Vec<String> {
+    let mut runs: Vec<String> = Vec::new();
+
+    // ASCII runs
+    let mut cur = String::new();
+    for &b in data {
+        if (0x20..=0x7E).contains(&b) {
+            cur.push(b as char);
+        } else if !cur.is_empty() {
+            runs.push(std::mem::take(&mut cur));
+        }
+    }
+    if !cur.is_empty() {
+        runs.push(std::mem::take(&mut cur));
+    }
+
+    // UTF-16LE runs (try both byte alignments)
+    for offset in 0..2 {
+        let mut cur = String::new();
+        for pair in data.get(offset..).unwrap_or(&[]).chunks_exact(2) {
+            let u = u16::from_le_bytes([pair[0], pair[1]]);
+            match char::from_u32(u32::from(u)) {
+                Some(c) if u >= 0x20 && !c.is_control() => cur.push(c),
+                _ => {
+                    if !cur.is_empty() {
+                        runs.push(std::mem::take(&mut cur));
+                    }
+                }
+            }
+        }
+        if !cur.is_empty() {
+            runs.push(cur);
+        }
+    }
+
+    let mut found = BTreeSet::new();
+    for run in runs {
+        if let Some(path) = path_candidate(&run) {
+            found.insert(path);
+        }
+    }
+    found.into_iter().collect()
+}
+
+fn path_candidate(run: &str) -> Option<String> {
+    let lower = run.to_ascii_lowercase();
+    // Find the furthest audio extension ending in this run.
+    let ext_end = AUDIO_EXTENSIONS
+        .iter()
+        .filter_map(|ext| lower.rfind(ext).map(|i| i + ext.len()))
+        .max()?;
+    let candidate = &run[..ext_end];
+    // Trim leading junk: prefer a drive letter (C:\), then an FL path variable (%...%),
+    // then a UNC/POSIX root.
+    let start = if let Some(i) = candidate.rfind(":\\").or_else(|| candidate.rfind(":/")) {
+        i.saturating_sub(1)
+    } else if let Some(i) = candidate.find('%') {
+        i
+    } else if let Some(i) = candidate.find("\\\\") {
+        i
+    } else if let Some(i) = candidate.find('/') {
+        i
+    } else {
+        return None;
+    };
+    let path = candidate.get(start..)?.trim();
+    if path.len() < 5 || !(path.contains('\\') || path.contains('/')) {
+        return None;
+    }
+    Some(path.to_string())
 }
 
 fn read_varint(bytes: &[u8], pos: &mut usize, end: usize) -> Result<usize, FlpError> {
@@ -712,6 +990,97 @@ mod tests {
         assert_eq!(manifest.mixer_inserts.len(), 1);
         assert_eq!(manifest.mixer_inserts[0].name, "Master");
         assert_eq!(manifest.mixer_inserts[0].fx_plugins, vec!["Fruity Limiter"]);
+    }
+
+    #[test]
+    fn hashes_plugin_state_so_settings_changes_are_visible() {
+        let a = parse_flp_bytes(&build_synthetic_flp(128_000, None)).unwrap();
+        assert!(a.channels[0].plugin_state_hash.is_some());
+        // The sampler channel has no plugin state chunk.
+        assert!(a.channels[1].plugin_state_hash.is_none());
+    }
+
+    #[test]
+    fn rewrites_sample_paths_and_keeps_everything_else() {
+        let original = build_synthetic_flp(128_000, Some("Fruity Limiter"));
+        let (rewritten, count) = rewrite_sample_paths(&original, |old| {
+            (old == "Samples\\Kick.wav").then(|| r"D:\Pulled\01ABC\Samples\Kick.wav".to_string())
+        })
+        .expect("rewrite");
+        assert_eq!(count, 1);
+
+        let before = parse_flp_bytes(&original).unwrap();
+        let after = parse_flp_bytes(&rewritten).unwrap();
+        assert_eq!(
+            after.channels[1].sample_path.as_deref(),
+            Some(r"D:\Pulled\01ABC\Samples\Kick.wav")
+        );
+        // Nothing else changed.
+        assert_eq!(before.bpm, after.bpm);
+        assert_eq!(before.patterns, after.patterns);
+        assert_eq!(before.mixer_inserts, after.mixer_inserts);
+        assert_eq!(before.channels[0], after.channels[0]);
+
+        // A no-op mapping must reproduce the file byte-for-byte.
+        let (same, n) = rewrite_sample_paths(&original, |_| None).unwrap();
+        assert_eq!(n, 0);
+        assert_eq!(same, original);
+    }
+
+    #[test]
+    fn parses_named_arrangements_and_playlist_hashes() {
+        let mut dt = Vec::new();
+        dt.push(TEXT_VERSION);
+        let ver = b"24.2.2.4597\0";
+        push_varint(&mut dt, ver.len());
+        dt.extend_from_slice(ver);
+        dt.push(WORD_NEW_ARRANGEMENT);
+        dt.extend_from_slice(&0u16.to_le_bytes());
+        push_utf16_event(&mut dt, TEXT_ARRANGEMENT_NAME, "Main");
+        dt.push(DATA_PLAYLIST_ITEMS);
+        push_varint(&mut dt, 32);
+        dt.extend_from_slice(&[7u8; 32]);
+        dt.push(WORD_NEW_ARRANGEMENT);
+        dt.extend_from_slice(&1u16.to_le_bytes());
+        dt.push(DATA_PLAYLIST_ITEMS);
+        push_varint(&mut dt, 0);
+
+        let mut out = Vec::new();
+        out.extend_from_slice(b"FLhd");
+        out.extend_from_slice(&6u32.to_le_bytes());
+        out.extend_from_slice(&0i16.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(&96u16.to_le_bytes());
+        out.extend_from_slice(b"FLdt");
+        out.extend_from_slice(&(dt.len() as u32).to_le_bytes());
+        out.extend_from_slice(&dt);
+
+        let m = parse_flp_bytes(&out).unwrap();
+        assert_eq!(m.arrangements.len(), 2);
+        assert_eq!(m.arrangements[0].name, "Main");
+        assert_eq!(m.arrangements[0].playlist_bytes, 32);
+        assert!(!m.arrangements[0].playlist_hash.is_empty());
+        assert_eq!(m.arrangements[1].name, "Arrangement 2");
+        assert!(m.arrangements[1].playlist_hash.is_empty());
+    }
+
+    #[test]
+    fn finds_sample_paths_embedded_in_native_plugin_state() {
+        let mut state = vec![0u8, 1, 2, 3];
+        state.extend_from_slice(b"\x05junkC:\\Users\\me\\Loops\\break.wav\0more");
+        for u in "%FLStudioFactoryData%\\Data\\Patches\\Packs\\Drums\\snare.WAV".encode_utf16() {
+            state.extend_from_slice(&u.to_le_bytes());
+        }
+        state.extend_from_slice(&[0, 0, 9, 9]);
+        state.extend_from_slice(b"not a path.wav");
+
+        let paths = extract_embedded_audio_paths(&state);
+        assert!(paths.contains(&r"C:\Users\me\Loops\break.wav".to_string()), "{paths:?}");
+        assert!(
+            paths.contains(&r"%FLStudioFactoryData%\Data\Patches\Packs\Drums\snare.WAV".to_string()),
+            "{paths:?}"
+        );
+        assert!(!paths.iter().any(|p| p.contains("not a path")), "{paths:?}");
     }
 
     #[test]

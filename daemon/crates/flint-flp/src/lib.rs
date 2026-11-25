@@ -4,7 +4,7 @@ mod diff;
 mod parser;
 
 pub use diff::diff_manifests;
-pub use parser::{parse_flp_bytes, parse_flp_path};
+pub use parser::{parse_flp_bytes, parse_flp_path, rewrite_sample_paths};
 
 use thiserror::Error;
 

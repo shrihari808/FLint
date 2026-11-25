@@ -943,14 +943,14 @@ dependencies = [
 
 [[package]]
 name = "flint-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "flint-daemon"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -959,13 +959,14 @@ dependencies = [
  "flint-flp",
  "flint-sync",
  "flint-vst-scan",
+ "serde",
  "serde_json",
  "tokio",
 ]
 
 [[package]]
 name = "flint-flp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "blake3",
  "flint-core",
@@ -975,7 +976,7 @@ dependencies = [
 
 [[package]]
 name = "flint-sync"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "blake3",
@@ -997,8 +998,9 @@ dependencies = [
 
 [[package]]
 name = "flint-vst-scan"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
+ "directories",
  "flint-core",
 ]
 

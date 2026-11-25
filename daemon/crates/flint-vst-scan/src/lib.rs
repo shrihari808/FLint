@@ -114,16 +114,117 @@ pub fn default_plugin_dirs() -> Vec<PathBuf> {
     }
 }
 
-/// Scan default OS plugin directories and return a sorted, deduplicated list of plugin names.
-pub fn scan_installed_plugins() -> Vec<String> {
-    scan_plugin_dirs(&default_plugin_dirs())
+/// Per-user plugin folders (no admin rights needed to install into these), plus any folders
+/// listed in the `FLINT_PLUGIN_DIRS` environment variable (`;`-separated on Windows,
+/// `:`-separated elsewhere) — use that for custom folders configured in FL Studio's
+/// *Manage plugins → Plugin search paths*.
+pub fn user_plugin_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    #[cfg(target_os = "windows")]
+    {
+        // VST3 spec per-user location, and the CLAP equivalent.
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let common = PathBuf::from(local).join("Programs").join("Common");
+            dirs.push(common.join("VST3"));
+            dirs.push(common.join("CLAP"));
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            dirs.push(PathBuf::from(&home).join(".vst3"));
+            dirs.push(PathBuf::from(&home).join(".clap"));
+            dirs.push(PathBuf::from(&home).join(".vst"));
+        }
+    }
+    if let Some(extra) = std::env::var_os("FLINT_PLUGIN_DIRS") {
+        dirs.extend(std::env::split_paths(&extra).filter(|p| !p.as_os_str().is_empty()));
+    }
+    dirs
 }
 
-/// Scan default OS plugin directories plus any user-configured extra folders.
+/// FL Studio's own plugin database folders
+/// (`Documents/Image-Line/<FL Studio folder>/Presets/Plugin database/Installed`).
+///
+/// FL Studio writes one `.nfo`/`.fst` file per plugin it has found, named the way FL displays
+/// the plugin. That matches the names stored in `.flp` files far better than guessing from
+/// `.vst3`/`.dll` filenames, and it includes plugins in custom search folders.
+pub fn fl_plugin_database_dirs() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let Some(user_dirs) = directories::UserDirs::new() else {
+        return out;
+    };
+    let Some(docs) = user_dirs.document_dir() else {
+        return out;
+    };
+    let image_line = docs.join("Image-Line");
+    let Ok(entries) = std::fs::read_dir(&image_line) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let installed = entry
+            .path()
+            .join("Presets")
+            .join("Plugin database")
+            .join("Installed");
+        if installed.is_dir() {
+            out.push(installed);
+        }
+    }
+    out
+}
+
+/// Collect plugin names from an FL Studio plugin database folder.
+pub fn scan_fl_plugin_database(dir: &Path) -> Vec<String> {
+    let mut found = BTreeSet::new();
+    walk_fl_database(dir, 0, &mut found);
+    found.into_iter().collect()
+}
+
+fn walk_fl_database(dir: &Path, depth: usize, found: &mut BTreeSet<String>) {
+    if depth > 6 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            walk_fl_database(&path, depth + 1, found);
+            continue;
+        }
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase());
+        if matches!(ext.as_deref(), Some("nfo") | Some("fst")) {
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                let cleaned = clean_display_name(stem);
+                if !cleaned.is_empty() {
+                    found.insert(cleaned);
+                }
+            }
+        }
+    }
+}
+
+/// Scan default OS plugin directories, per-user folders, and FL Studio's plugin database,
+/// and return a sorted, deduplicated list of plugin names.
+pub fn scan_installed_plugins() -> Vec<String> {
+    scan_installed_plugins_with_extras(&[])
+}
+
+/// Same as [`scan_installed_plugins`], plus any extra folders.
 pub fn scan_installed_plugins_with_extras(extra_dirs: &[PathBuf]) -> Vec<String> {
     let mut dirs = default_plugin_dirs();
+    dirs.extend(user_plugin_dirs());
     dirs.extend(extra_dirs.iter().cloned());
-    scan_plugin_dirs(&dirs)
+    let mut found: BTreeSet<String> = scan_plugin_dirs(&dirs).into_iter().collect();
+    for db in fl_plugin_database_dirs() {
+        found.extend(scan_fl_plugin_database(&db));
+    }
+    found.into_iter().collect()
 }
 
 /// Scan a specific set of directories for `.vst3`, `.clap`, and `.dll`/`.vst`/`.component` plugins.
@@ -310,6 +411,28 @@ mod tests {
     use flint_core::{ChannelInfo, MixerInsertInfo};
 
     #[test]
+    fn reads_plugin_names_from_fl_studio_plugin_database() {
+        let root = std::env::temp_dir().join(format!(
+            "flint_fl_db_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let vst3 = root.join("Effects").join("VST3");
+        let gens = root.join("Generators").join("VST");
+        std::fs::create_dir_all(&vst3).unwrap();
+        std::fs::create_dir_all(&gens).unwrap();
+        std::fs::write(vst3.join("RC-20 Retro Color.nfo"), b"").unwrap();
+        std::fs::write(gens.join("Serum (x64).fst"), b"").unwrap();
+        std::fs::write(gens.join("readme.txt"), b"").unwrap();
+
+        let names = scan_fl_plugin_database(&root);
+        assert_eq!(names, vec!["RC-20 Retro Color".to_string(), "Serum".to_string()]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn stock_plugins_are_not_flagged_as_missing() {
         let manifest = ProjectManifest {
             fl_version: "24.2.2.4597".into(),
@@ -320,6 +443,7 @@ mod tests {
                     plugin_name: Some("3x Osc".into()),
                     wrapped_plugin_name: None,
                     sample_path: None,
+                    ..Default::default()
                 },
                 ChannelInfo {
                     index: 1,
@@ -327,6 +451,7 @@ mod tests {
                     plugin_name: Some("Fruity Wrapper".into()),
                     wrapped_plugin_name: Some("Serum 2".into()),
                     sample_path: None,
+                    ..Default::default()
                 },
             ],
             mixer_inserts: vec![MixerInsertInfo {
@@ -336,6 +461,7 @@ mod tests {
                     "Fruity Parametric EQ 2".into(),
                     "RC-20 Retro Color".into(),
                 ],
+                ..Default::default()
             }],
             ..Default::default()
         };

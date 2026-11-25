@@ -9,7 +9,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "MIT"
 
@@ -24,10 +24,15 @@ blake3 = "1.8"
 clap = { version = "4.5", features = ["derive"] }
 directories = "6.0"
 futures-lite = "2.6"
-iroh = "1"
-iroh-blobs = "0.103"
-iroh-docs = "0.101"
-iroh-gossip = "0.101"
+# Iroh: pinned to exact versions. iroh itself is 1.x, but iroh-blobs / iroh-docs /
+# iroh-gossip are still pre-1.0 and their APIs change between minor releases. The four
+# crates must also stay mutually compatible, so upgrade them together, deliberately:
+#   1. bump all four here, 2. `cargo update -p iroh -p iroh-blobs -p iroh-docs -p iroh-gossip`,
+#   3. `cargo test --workspace`, and run the ignored internet test (see flint-sync/tests).
+iroh = "=1.5.0"
+iroh-blobs = "=0.103.1"
+iroh-docs = "=0.101.0"
+iroh-gossip = "=0.101.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"

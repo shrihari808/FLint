@@ -12,5 +12,6 @@ flint-core.workspace = true
 flint-flp.workspace = true
 flint-sync.workspace = true
 flint-vst-scan.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
