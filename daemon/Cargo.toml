@@ -1,0 +1,42 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/flint-core",
+    "crates/flint-flp",
+    "crates/flint-vst-scan",
+    "crates/flint-sync",
+    "crates/flint-daemon",
+]
+
+[workspace.package]
+version = "0.2.1"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+flint-core = { path = "crates/flint-core" }
+flint-flp = { path = "crates/flint-flp" }
+flint-vst-scan = { path = "crates/flint-vst-scan" }
+flint-sync = { path = "crates/flint-sync" }
+
+anyhow = "1.0"
+blake3 = "1.8"
+clap = { version = "4.5", features = ["derive"] }
+directories = "6.0"
+futures-lite = "2.6"
+# Iroh: pinned to exact versions. iroh itself is 1.x, but iroh-blobs / iroh-docs /
+# iroh-gossip are still pre-1.0 and their APIs change between minor releases. The four
+# crates must also stay mutually compatible, so upgrade them together, deliberately:
+#   1. bump all four here, 2. `cargo update -p iroh -p iroh-blobs -p iroh-docs -p iroh-gossip`,
+#   3. `cargo test --workspace`, and run the ignored internet test (see flint-sync/tests).
+iroh = "=1.5.0"
+iroh-blobs = "=0.103.1"
+iroh-docs = "=0.101.0"
+iroh-gossip = "=0.101.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+ulid = "1.2"
+zip = { version = "2.2", default-features = false, features = ["deflate"] }

@@ -1,0 +1,23 @@
+[package]
+name = "flint-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+blake3.workspace = true
+flint-core.workspace = true
+flint-flp.workspace = true
+futures-lite.workspace = true
+iroh.workspace = true
+iroh-blobs.workspace = true
+iroh-docs.workspace = true
+iroh-gossip.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+ulid.workspace = true
+zip.workspace = true
